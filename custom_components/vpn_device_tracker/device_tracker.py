@@ -2,20 +2,33 @@
 import ipaddress
 import logging
 
-from homeassistant.components.device_tracker import TrackerEntity
+import voluptuous as vol
+
+from homeassistant.components.device_tracker import PLATFORM_SCHEMA, TrackerEntity
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.const import STATE_HOME, STATE_NOT_HOME
+from homeassistant.const import CONF_NAME, STATE_HOME, STATE_NOT_HOME
 from homeassistant.core import callback
+import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "vpn_device_tracker"
 
+CONF_SOURCE_ENTITY = "source_entity"
+CONF_IP_ZONES = "ip_zones"
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_SOURCE_ENTITY): cv.entity_id,
+    vol.Required(CONF_IP_ZONES): vol.Schema({cv.string: cv.string}),
+    vol.Optional(CONF_NAME): cv.string,
+})
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the VPN Device Tracker."""
-    source_entity = config.get("source_entity")
-    ip_zones = config.get("ip_zones", {})
+    source_entity = config.get(CONF_SOURCE_ENTITY)
+    ip_zones = config.get(CONF_IP_ZONES, {})
+    name = config.get(CONF_NAME)
 
     if not source_entity or not ip_zones:
         _LOGGER.error("Missing source_entity or ip_zones in configuration")
@@ -29,7 +42,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             source_entity
         )
 
-    entity = VPNDeviceTracker(hass, source_entity, ip_zones)
+    entity = VPNDeviceTracker(hass, source_entity, ip_zones, name)
     async_add_entities([entity], True)
     return True
 
@@ -37,13 +50,19 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 class VPNDeviceTracker(TrackerEntity):
     """Representation of a VPN Device Tracker."""
 
-    def __init__(self, hass, source_entity, ip_zones):
+    def __init__(self, hass, source_entity, ip_zones, name=None):
         """Initialize the VPN Device Tracker."""
         self._hass = hass
         self._source = source_entity
         self._ip_zones = {}
         self._state = STATE_NOT_HOME
-        self._attr_name = f"VPN Zone {source_entity.replace('device_tracker.', '')}"
+        
+        # Use custom name if provided, otherwise generate one
+        if name:
+            self._attr_name = name
+        else:
+            self._attr_name = f"VPN Zone {source_entity.replace('device_tracker.', '')}"
+        
         self._attr_unique_id = f"vpn_device_tracker_{source_entity}"
         self._attr_should_poll = False
         
