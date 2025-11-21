@@ -4,9 +4,10 @@
 [![License](https://img.shields.io/github/license/undefjs/vpn-device-tracker.svg)](LICENSE)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 
-**Solución para detectar la ubicación de dispositivos en instalaciones multi-sitio conectadas por VPN**
+**Integración personalizada para HACS - Detecta la ubicación de dispositivos en instalaciones multi-sitio conectadas por VPN**
 
-> 📦 **Repositorio**: [github.com/undefjs/vpn-device-tracker](https://github.com/undefjs/vpn-device-tracker)
+> 📦 **Repositorio**: [github.com/undefjs/vpn-device-tracker](https://github.com/undefjs/vpn-device-tracker)  
+> 🏪 **Compatible con HACS** - Home Assistant Community Store
 
 ## 🎯 Problema que Resuelve
 

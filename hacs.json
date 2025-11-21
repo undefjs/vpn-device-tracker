@@ -6,6 +6,9 @@
     "homeassistant": "2021.4.0",
     "iot_class": "Local Push",
     "zip_release": false,
+    "domains": [
+        "device_tracker"
+    ],
     "country": [
         "ES"
     ]
