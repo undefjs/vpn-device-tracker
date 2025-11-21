@@ -2,43 +2,29 @@
 import ipaddress
 import logging
 
-import voluptuous as vol
-
-from homeassistant.components.device_tracker import PLATFORM_SCHEMA
-from homeassistant.components.device_tracker.const import (
-    DOMAIN as DEVICE_TRACKER_DOMAIN,
-    SOURCE_TYPE_ROUTER,
-)
+from homeassistant.components.device_tracker.config_entry import TrackerEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.const import CONF_NAME, STATE_HOME, STATE_NOT_HOME
-from homeassistant.core import callback
-import homeassistant.helpers.config_validation as cv
+
+from .const import DOMAIN, CONF_SOURCE_ENTITY, CONF_IP_ZONES
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "vpn_device_tracker"
 
-CONF_SOURCE_ENTITY = "source_entity"
-CONF_IP_ZONES = "ip_zones"
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up VPN Device Tracker from a config entry."""
+    source_entity = entry.data[CONF_SOURCE_ENTITY]
+    ip_zones = entry.data[CONF_IP_ZONES]
+    name = entry.data.get(CONF_NAME)
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_SOURCE_ENTITY): cv.entity_id,
-    vol.Required(CONF_IP_ZONES): vol.Schema({cv.string: cv.string}),
-    vol.Optional(CONF_NAME): cv.string,
-})
-
-
-async def async_setup_scanner(hass, config, async_see, discovery_info=None):
-    """Set up the VPN Device Tracker scanner."""
-    source_entity = config.get(CONF_SOURCE_ENTITY)
-    ip_zones = config.get(CONF_IP_ZONES, {})
-    device_name = config.get(CONF_NAME)
-
-    if not source_entity or not ip_zones:
-        _LOGGER.error("Missing source_entity or ip_zones in configuration")
-        return False
-
-    # Parse IP zones with error handling
+    # Parse IP zones
     parsed_zones = {}
     for zone, network in ip_zones.items():
         try:
@@ -48,111 +34,120 @@ async def async_setup_scanner(hass, config, async_see, discovery_info=None):
 
     if not parsed_zones:
         _LOGGER.error("No valid IP zones configured")
-        return False
+        return
 
-    # Validate that source entity exists
-    source_state = hass.states.get(source_entity)
-    if source_state is None:
-        _LOGGER.warning(
-            "Source entity %s not found. Tracker will be created but may not work until source is available",
-            source_entity
-        )
-
-    scanner = VPNDeviceScanner(
-        hass, async_see, source_entity, parsed_zones, device_name
-    )
-    
-    # Initial update
-    await scanner.async_update()
-
-    return True
+    entity = VPNDeviceTracker(hass, entry.entry_id, source_entity, parsed_zones, name)
+    async_add_entities([entity], True)
 
 
-class VPNDeviceScanner:
-    """VPN Device Scanner that monitors source entity and updates location."""
+class VPNDeviceTracker(TrackerEntity):
+    """Representation of a VPN Device Tracker."""
 
-    def __init__(self, hass, async_see, source_entity, ip_zones, device_name=None):
-        """Initialize the scanner."""
-        self.hass = hass
-        self.async_see = async_see
+    _attr_has_entity_name = False
+    _attr_should_poll = False
+
+    def __init__(self, hass, entry_id, source_entity, ip_zones, name=None):
+        """Initialize the VPN Device Tracker."""
         self._source = source_entity
         self._ip_zones = ip_zones
+        self._state = STATE_NOT_HOME
+        self._ip_address = None
         
-        # Generate device name and ID
+        # Generate entity details
         source_clean = source_entity.replace('device_tracker.', '')
-        self._device_id = f"vpn_zone_{source_clean}"
-        self._device_name = device_name or f"VPN Zone {source_clean}"
+        self._attr_unique_id = f"{DOMAIN}_{source_clean}"
         
-        # Set up state change listener
-        async_track_state_change_event(
-            hass, [source_entity], self._async_state_changed_listener
-        )
-        
+        if name:
+            self._attr_name = name
+        else:
+            self._attr_name = f"VPN Zone {source_clean}"
+
         _LOGGER.info("VPN Device Tracker initialized for %s", source_entity)
 
-    @callback
-    def _async_state_changed_listener(self, event):
-        """Handle state changes of the source entity."""
-        self.hass.async_create_task(self.async_update())
+    @property
+    def state(self):
+        """Return the state of the device tracker."""
+        return self._state
 
-    async def async_update(self):
-        """Update the device location based on IP."""
+    @property
+    def location_name(self):
+        """Return the location name of the device."""
+        return self._state if self._state != STATE_NOT_HOME else None
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        if self._state == STATE_NOT_HOME:
+            return "mdi:vpn-off"
+        return "mdi:vpn"
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra attributes."""
+        attrs = {
+            "source_entity": self._source,
+            "configured_zones": list(self._ip_zones.keys()),
+        }
+        if self._ip_address:
+            attrs["ip_address"] = self._ip_address
+        return attrs
+
+    async def async_added_to_hass(self):
+        """Register callbacks when entity is added."""
+        # Initial update
+        await self._async_update_from_source()
+
+        # Track state changes
+        @callback
+        def state_changed_listener(event):
+            """Handle state changes of the source entity."""
+            self.hass.async_create_task(self._async_update_from_source())
+
+        self.async_on_remove(
+            async_track_state_change_event(
+                self.hass, [self._source], state_changed_listener
+            )
+        )
+
+    async def _async_update_from_source(self):
+        """Update state based on source entity."""
         source_state = self.hass.states.get(self._source)
         
         if source_state is None:
             _LOGGER.debug("Source entity %s not available", self._source)
-            await self.async_see(
-                dev_id=self._device_id,
-                host_name=self._device_name,
-                location_name=STATE_NOT_HOME,
-                source_type=SOURCE_TYPE_ROUTER,
-            )
+            self._state = STATE_NOT_HOME
+            self._ip_address = None
+            self.async_write_ha_state()
             return
 
         ip = source_state.attributes.get("ip")
         if not ip:
             _LOGGER.debug("No IP attribute found in %s", self._source)
-            await self.async_see(
-                dev_id=self._device_id,
-                host_name=self._device_name,
-                location_name=STATE_NOT_HOME,
-                source_type=SOURCE_TYPE_ROUTER,
-            )
+            self._state = STATE_NOT_HOME
+            self._ip_address = None
+            self.async_write_ha_state()
             return
+
+        self._ip_address = ip
 
         try:
             ip_addr = ipaddress.ip_address(ip)
         except ValueError as err:
             _LOGGER.warning("Invalid IP address '%s' from %s: %s", ip, self._source, err)
-            await self.async_see(
-                dev_id=self._device_id,
-                host_name=self._device_name,
-                location_name=STATE_NOT_HOME,
-                source_type=SOURCE_TYPE_ROUTER,
-            )
+            self._state = STATE_NOT_HOME
+            self.async_write_ha_state()
             return
 
         # Check which zone the IP belongs to
-        matched_zone = None
+        matched = STATE_NOT_HOME
         for zone, network in self._ip_zones.items():
             if ip_addr in network:
-                matched_zone = zone
+                matched = zone
                 _LOGGER.debug("IP %s matched zone '%s' (network: %s)", ip, zone, network)
                 break
 
-        if matched_zone is None:
-            matched_zone = STATE_NOT_HOME
+        if matched == STATE_NOT_HOME:
             _LOGGER.debug("IP %s did not match any configured zone", ip)
 
-        # Update the device tracker
-        await self.async_see(
-            dev_id=self._device_id,
-            host_name=self._device_name,
-            location_name=matched_zone,
-            source_type=SOURCE_TYPE_ROUTER,
-            attributes={
-                "source_entity": self._source,
-                "ip_address": str(ip),
-                "configured_zones": list(self._ip_zones.keys()),
-            },
-        )
+        self._state = matched
+        self.async_write_ha_state()

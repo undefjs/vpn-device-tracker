@@ -1,0 +1,24 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configuración de VPN Device Tracker",
+                "description": "Configura VPN Device Tracker para detectar la ubicación del dispositivo según rangos de direcciones IP.\n\nIntroduce las zonas IP en el formato:\nnombre_zona: red/cidr\n\nEjemplo:\n{example}",
+                "data": {
+                    "source_entity": "Entidad Device Tracker Origen",
+                    "ip_zones": "Zonas IP (una por línea)",
+                    "name": "Nombre (opcional)"
+                }
+            }
+        },
+        "error": {
+            "entity_not_found": "Entidad origen no encontrada",
+            "invalid_network": "Formato de red IP inválido (usa notación CIDR como 192.168.1.0/24)",
+            "invalid_format": "Formato de zonas IP inválido. Usa el formato 'nombre_zona: red/cidr', una por línea",
+            "no_zones": "Se requiere al menos una zona IP"
+        },
+        "abort": {
+            "already_configured": "Esta entidad origen ya está configurada"
+        }
+    }
+}
