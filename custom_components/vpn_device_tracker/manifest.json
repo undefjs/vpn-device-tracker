@@ -1,0 +1,11 @@
+{
+    "domain": "vpn_device_tracker",
+    "name": "VPN Device Tracker",
+    "version": "1.0.0",
+    "documentation": "https://github.com/undefjs/vpn-device-tracker",
+    "issue_tracker": "https://github.com/undefjs/vpn-device-tracker/issues",
+    "requirements": [],
+    "dependencies": [],
+    "codeowners": [],
+    "iot_class": "local_push"
+}

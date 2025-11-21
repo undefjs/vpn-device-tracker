@@ -1,0 +1,12 @@
+{
+    "name": "VPN Device Tracker",
+    "content_in_root": false,
+    "filename": "vpn_device_tracker",
+    "render_readme": true,
+    "homeassistant": "2021.4.0",
+    "iot_class": "Local Push",
+    "zip_release": false,
+    "country": [
+        "ES"
+    ]
+}
