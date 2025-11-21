@@ -6,7 +6,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
-import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers import selector
 
 from .const import DOMAIN, CONF_SOURCE_ENTITY, CONF_IP_ZONES
 
@@ -67,11 +67,22 @@ class VPNDeviceTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-        # Show configuration form
+        # Show configuration form with selectors
         data_schema = vol.Schema({
-            vol.Required(CONF_SOURCE_ENTITY): cv.entity_id,
-            vol.Required(CONF_IP_ZONES): str,
-            vol.Optional(CONF_NAME): str,
+            vol.Required(CONF_SOURCE_ENTITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="device_tracker")
+            ),
+            vol.Required(CONF_IP_ZONES): selector.TextSelector(
+                selector.TextSelectorConfig(
+                    multiline=True,
+                    type=selector.TextSelectorType.TEXT
+                )
+            ),
+            vol.Optional(CONF_NAME): selector.TextSelector(
+                selector.TextSelectorConfig(
+                    type=selector.TextSelectorType.TEXT
+                )
+            ),
         })
 
         return self.async_show_form(
