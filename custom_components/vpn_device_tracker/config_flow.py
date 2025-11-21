@@ -28,12 +28,14 @@ async def validate_input(hass: HomeAssistant, data: dict):
     if not hass.states.get(source_entity):
         raise EntityNotFound
     
-    # Validate and parse IP zones
+    # Validate and parse IP zones (semicolon separated)
     ip_zones = {}
     try:
-        for line in ip_zones_text.strip().split("\n"):
-            if line.strip() and ":" in line:
-                zone_name, network = line.split(":", 1)
+        # Split by semicolon or newline
+        separator = ";" if ";" in ip_zones_text else "\n"
+        for zone_def in ip_zones_text.strip().split(separator):
+            if zone_def.strip() and ":" in zone_def:
+                zone_name, network = zone_def.split(":", 1)
                 zone_name = zone_name.strip()
                 network = network.strip()
                 
@@ -100,7 +102,7 @@ class VPNDeviceTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=DATA_SCHEMA,
             errors=errors,
             description_placeholders={
-                "example": "home: 192.168.1.0/24\noffice: 10.20.0.0/16"
+                "example": "home: 192.168.1.0/24; office: 10.20.0.0/16; parents: 192.168.50.0/24"
             },
         )
 
