@@ -1,42 +1,40 @@
-```json
 {
     "config": {
         "step": {
             "user": {
-                "title": "VPN Device Tracker - Paso 1: Dispositivo",
-                "description": "Selecciona el device tracker origen que quieres monitorear.\n\nEjemplo: {source_example}",
+                "title": "VPN Device Tracker - Step 1: Device",
+                "description": "Select the source device tracker to monitor.\n\nExample: {source_example}",
                 "data": {
-                    "source_entity": "Device Tracker Origen",
-                    "name": "Nombre (opcional)"
+                    "source_entity": "Source Device Tracker",
+                    "name": "Name (optional)"
                 }
             },
             "add_zone": {
-                "title": "VPN Device Tracker - Añadir Zona",
-                "description": "{configured}\n\nNombre: {name_example}\nRed (CIDR): {network_example}",
+                "title": "VPN Device Tracker - Add Zone",
+                "description": "{configured}\n\nName: {name_example}\nNetwork (CIDR): {network_example}",
                 "data": {
-                    "zone_name": "Nombre de la Zona",
-                    "zone_network": "Red IP (notación CIDR)"
+                    "zone_name": "Zone Name",
+                    "zone_network": "IP Network (CIDR notation)"
                 }
             },
             "add_more": {
-                "title": "VPN Device Tracker - Zonas Configuradas",
-                "description": "Has añadido {count} zona(s):\n\n{zones}\n\n¿Deseas añadir otra zona?",
+                "title": "VPN Device Tracker - Configured Zones",
+                "description": "You have added {count} zone(s):\n\n{zones}\n\nDo you want to add another zone?",
                 "data": {
-                    "add_more": "Añadir otra zona"
+                    "add_more": "Add another zone"
                 }
             }
         },
         "error": {
-            "entity_not_found": "Entidad origen no encontrada",
-            "zone_name_required": "El nombre de la zona es obligatorio",
-            "zone_already_exists": "Esta zona ya existe",
-            "zone_network_required": "La red IP es obligatoria",
-            "invalid_network": "Formato de red IP inválido (usa notación CIDR como 192.168.1.0/24)",
-            "unknown": "Error desconocido"
+            "entity_not_found": "Source entity not found",
+            "zone_name_required": "Zone name is required",
+            "zone_already_exists": "This zone already exists",
+            "zone_network_required": "IP network is required",
+            "invalid_network": "Invalid IP network format (use CIDR notation like 192.168.1.0/24)",
+            "unknown": "Unknown error"
         },
         "abort": {
-            "already_configured": "Esta entidad origen ya está configurada"
+            "already_configured": "This source entity is already configured"
         }
     }
 }
-```

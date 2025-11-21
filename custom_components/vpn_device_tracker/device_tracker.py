@@ -120,6 +120,16 @@ class VPNDeviceTracker(TrackerEntity):
             self.async_write_ha_state()
             return
 
+        # First check if source device is home
+        # If source is not_home, we are also not_home regardless of IP
+        if source_state.state == STATE_NOT_HOME:
+            _LOGGER.debug("Source entity %s is not_home, setting state to not_home", self._source)
+            self._state = STATE_NOT_HOME
+            self._ip_address = None
+            self.async_write_ha_state()
+            return
+
+        # Source is home, now check IP to determine which zone
         ip = source_state.attributes.get("ip")
         if not ip:
             _LOGGER.debug("No IP attribute found in %s", self._source)
