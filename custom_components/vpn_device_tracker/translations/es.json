@@ -1,24 +1,42 @@
+```
 {
     "config": {
         "step": {
             "user": {
-                "title": "Configuración de VPN Device Tracker",
-                "description": "Configura VPN Device Tracker para detectar la ubicación del dispositivo según rangos de direcciones IP.\n\nIntroduce las zonas IP en el formato:\nnombre_zona: red/cidr\n\nEjemplo:\n{example}",
+                "title": "VPN Device Tracker - Paso 1: Dispositivo",
+                "description": "Selecciona el device tracker origen que quieres monitorear.\n\nEjemplo: {source_example}",
                 "data": {
-                    "source_entity": "Entidad Device Tracker Origen",
-                    "ip_zones": "Zonas IP (una por línea)",
+                    "source_entity": "Device Tracker Origen",
                     "name": "Nombre (opcional)"
+                }
+            },
+            "add_zone": {
+                "title": "VPN Device Tracker - Añadir Zona",
+                "description": "{configured}\n\nNombre: {name_example}\nRed (CIDR): {network_example}",
+                "data": {
+                    "zone_name": "Nombre de la Zona",
+                    "zone_network": "Red IP (notación CIDR)"
+                }
+            },
+            "add_more": {
+                "title": "VPN Device Tracker - Zonas Configuradas",
+                "description": "Has añadido {count} zona(s):\n\n{zones}\n\n¿Deseas añadir otra zona?",
+                "data": {
+                    "add_more": "Añadir otra zona"
                 }
             }
         },
         "error": {
             "entity_not_found": "Entidad origen no encontrada",
+            "zone_name_required": "El nombre de la zona es obligatorio",
+            "zone_already_exists": "Esta zona ya existe",
+            "zone_network_required": "La red IP es obligatoria",
             "invalid_network": "Formato de red IP inválido (usa notación CIDR como 192.168.1.0/24)",
-            "invalid_format": "Formato de zonas IP inválido. Usa el formato 'nombre_zona: red/cidr', una por línea",
-            "no_zones": "Se requiere al menos una zona IP"
+            "unknown": "Error desconocido"
         },
         "abort": {
             "already_configured": "Esta entidad origen ya está configurada"
         }
     }
 }
+```

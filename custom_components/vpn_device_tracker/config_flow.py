@@ -12,112 +12,132 @@ from .const import DOMAIN, CONF_SOURCE_ENTITY, CONF_IP_ZONES
 
 _LOGGER = logging.getLogger(__name__)
 
-DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_SOURCE_ENTITY): str,
-    vol.Required(CONF_IP_ZONES): str,
-    vol.Optional(CONF_NAME, default=""): str,
-})
-
-
-async def validate_input(hass: HomeAssistant, data: dict):
-    """Validate the user input."""
-    source_entity = data[CONF_SOURCE_ENTITY]
-    ip_zones_text = data[CONF_IP_ZONES]
-    
-    # Validate source entity exists
-    if not hass.states.get(source_entity):
-        raise EntityNotFound
-    
-    # Validate and parse IP zones (semicolon separated)
-    ip_zones = {}
-    try:
-        # Split by semicolon or newline
-        separator = ";" if ";" in ip_zones_text else "\n"
-        for zone_def in ip_zones_text.strip().split(separator):
-            if zone_def.strip() and ":" in zone_def:
-                zone_name, network = zone_def.split(":", 1)
-                zone_name = zone_name.strip()
-                network = network.strip()
-                
-                # Validate network
-                try:
-                    ipaddress.ip_network(network)
-                    ip_zones[zone_name] = network
-                except ValueError as err:
-                    _LOGGER.error("Invalid network %s: %s", network, err)
-                    raise InvalidNetwork
-        
-        if not ip_zones:
-            raise NoZones
-            
-    except (ValueError, AttributeError) as err:
-        _LOGGER.error("Invalid IP zones format: %s", err)
-        raise InvalidFormat
-
-    return {
-        "title": data.get(CONF_NAME) or f"VPN Zone {source_entity.replace('device_tracker.', '')}",
-        "ip_zones": ip_zones
-    }
-
 
 class VPNDeviceTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for VPN Device Tracker."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
-        """Handle the initial step."""
-        errors = {}
-        
-        if user_input is not None:
-            try:
-                info = await validate_input(self.hass, user_input)
-                
-                # Create unique ID from source entity
-                await self.async_set_unique_id(f"{DOMAIN}_{user_input[CONF_SOURCE_ENTITY]}")
-                self._abort_if_unique_id_configured()
+    def __init__(self):
+        """Initialize the config flow."""
+        self._source_entity = None
+        self._name = None
+        self._ip_zones = {}
 
-                return self.async_create_entry(
-                    title=info["title"],
-                    data={
-                        CONF_SOURCE_ENTITY: user_input[CONF_SOURCE_ENTITY],
-                        CONF_IP_ZONES: info["ip_zones"],
-                        CONF_NAME: user_input.get(CONF_NAME, ""),
-                    },
-                )
-            except EntityNotFound:
+    async def async_step_user(self, user_input=None):
+        """Handle the initial step - select source entity."""
+        errors = {}
+
+        if user_input is not None:
+            source_entity = user_input[CONF_SOURCE_ENTITY]
+            
+            # Validate source entity exists
+            if not self.hass.states.get(source_entity):
                 errors["source_entity"] = "entity_not_found"
-            except InvalidNetwork:
-                errors["ip_zones"] = "invalid_network"
-            except InvalidFormat:
-                errors["ip_zones"] = "invalid_format"
-            except NoZones:
-                errors["ip_zones"] = "no_zones"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+            else:
+                self._source_entity = source_entity
+                self._name = user_input.get(CONF_NAME, "")
+                return await self.async_step_add_zone()
+
+        data_schema = vol.Schema({
+            vol.Required(CONF_SOURCE_ENTITY): str,
+            vol.Optional(CONF_NAME, default=""): str,
+        })
 
         return self.async_show_form(
             step_id="user",
-            data_schema=DATA_SCHEMA,
+            data_schema=data_schema,
             errors=errors,
             description_placeholders={
-                "example": "home: 192.168.1.0/24; office: 10.20.0.0/16; parents: 192.168.50.0/24"
+                "source_example": "device_tracker.mi_movil"
             },
         )
 
+    async def async_step_add_zone(self, user_input=None):
+        """Handle adding a zone."""
+        errors = {}
 
-class EntityNotFound(HomeAssistantError):
-    """Error to indicate entity not found."""
+        if user_input is not None:
+            zone_name = user_input.get("zone_name", "").strip()
+            zone_network = user_input.get("zone_network", "").strip()
 
+            # Validate inputs
+            if not zone_name:
+                errors["zone_name"] = "zone_name_required"
+            elif zone_name in self._ip_zones:
+                errors["zone_name"] = "zone_already_exists"
+            
+            if not zone_network:
+                errors["zone_network"] = "zone_network_required"
+            else:
+                try:
+                    ipaddress.ip_network(zone_network)
+                except ValueError:
+                    errors["zone_network"] = "invalid_network"
 
-class InvalidNetwork(HomeAssistantError):
-    """Error to indicate invalid network format."""
+            if not errors:
+                # Add the zone
+                self._ip_zones[zone_name] = zone_network
+                
+                # Ask if user wants to add more zones
+                return await self.async_step_add_more()
 
+        # Show current zones
+        zones_list = "\n".join([f"✓ {name}: {net}" for name, net in self._ip_zones.items()])
+        description = f"Source: {self._source_entity}\n\nZonas configuradas:\n{zones_list}" if self._ip_zones else f"Source: {self._source_entity}\n\nAñade la primera zona"
 
-class InvalidFormat(HomeAssistantError):
-    """Error to indicate invalid format."""
+        data_schema = vol.Schema({
+            vol.Required("zone_name"): str,
+            vol.Required("zone_network"): str,
+        })
 
+        return self.async_show_form(
+            step_id="add_zone",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders={
+                "configured": description,
+                "name_example": "home, office, parents, etc.",
+                "network_example": "192.168.1.0/24"
+            },
+        )
 
-class NoZones(HomeAssistantError):
-    """Error to indicate no zones provided."""
+    async def async_step_add_more(self, user_input=None):
+        """Ask if user wants to add more zones."""
+        if user_input is not None:
+            if user_input.get("add_more"):
+                return await self.async_step_add_zone()
+            else:
+                # Finish configuration
+                if not self._ip_zones:
+                    return await self.async_step_add_zone()
+                
+                # Create unique ID
+                await self.async_set_unique_id(f"{DOMAIN}_{self._source_entity}")
+                self._abort_if_unique_id_configured()
+
+                title = self._name or f"VPN Zone {self._source_entity.replace('device_tracker.', '')}"
+                
+                return self.async_create_entry(
+                    title=title,
+                    data={
+                        CONF_SOURCE_ENTITY: self._source_entity,
+                        CONF_IP_ZONES: self._ip_zones,
+                        CONF_NAME: self._name,
+                    },
+                )
+
+        zones_list = "\n".join([f"✓ {name}: {net}" for name, net in self._ip_zones.items()])
+        
+        data_schema = vol.Schema({
+            vol.Required("add_more", default=True): bool,
+        })
+
+        return self.async_show_form(
+            step_id="add_more",
+            data_schema=data_schema,
+            description_placeholders={
+                "zones": zones_list,
+                "count": str(len(self._ip_zones))
+            },
+        )
